@@ -1,0 +1,27 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Lab Camera Stream</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js" integrity="sha256-oP6HI9z1XaZNBrJURtCoUT5SUnxFr8s3BzRl+cbzUq8=" crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>    <script type="text/javascript" charset="utf-8">
+        $(document).ready(function() {
+            // Connect to the Socket.IO server.
+            var socket = io({transports: ['websocket'], upgrade: false});
+
+            // Event handler for server sent data.
+            socket.on('updateClients', function(clientCount) {
+                document.getElementById('clientCount').innerHTML = `Connected Clients: ${clientCount}`
+                // $('#clientCount')[0].innerHTML = `Connected Clients: ${clientCount}`
+            });
+        });
+    </script>
+</head>
+<body>
+    <div style="background-position: center; background-repeat: no-repeat; background-size: cover;">
+        <img src="stream.mjpg"/>
+    </div>
+    <div id="clientCount">Connected Clients: </div>
+</body>
+</html>

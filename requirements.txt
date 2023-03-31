@@ -1,0 +1,8 @@
+flask
+flask-socketio
+# simple-websocket
+discord.py
+pathvalidate
+reactionmenu
+simple-websocket
+opencv-python-headless
