@@ -1,15 +1,10 @@
-import asyncio
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import shutil
 import traceback
-from typing import Final, List, Optional
 import discord
-from discord import app_commands
 import cameras
 from discord.ext.commands import Bot
-from discord.ext import commands
 import constants
 import helpers.cogs
 import logging.handlers
@@ -54,7 +49,7 @@ class CameraBot(Bot):
             try:
                 await self.load_extension(f"{cogs.__name__}.{cog}")
                 self.logger.info(f"Loaded '{cog}' cog")
-            except Exception as e:
+            except Exception:
                 self.logger.info(f"Failed to load '{cog}' cog")
                 self.logger.error(traceback.format_exc())
 

@@ -1,24 +1,24 @@
-import dataclasses
 import io
 import os
 import shutil
+import subprocess
 import sys
 import typing
 import zipfile
-from discord import app_commands
-import discord
-from reactionmenu import ViewButton, ViewMenu, ViewSelect
-import requests
-import constants
-from discord.ext import commands
-import helpers.cogs
-import helpers.autocomplete
-import cogs
-from views.page_view import PageView
-from views.confirm_view import ConfirmView
-import config
 import checks
-import pygit2
+import cogs
+import config
+import constants
+import discord
+import helpers.autocomplete
+import helpers.cogs
+import requests
+from discord import app_commands
+from discord.ext import commands
+from reactionmenu import ViewButton, ViewMenu, ViewSelect
+from views.confirm_view import ConfirmView
+from views.page_view import PageView
+
 
 class OwnerCog(commands.Cog):
     maintenance_group = app_commands.Group(
@@ -73,7 +73,7 @@ class OwnerCog(commands.Cog):
     )
     @maintenance_group.command(name="update")
     async def bot_update(self, interaction: discord.Interaction, branch: typing.Optional[str] = "main", auto_restart: typing.Optional[bool] = False):
-        """Update and restart bot."""
+        """Update bot."""
         view = ConfirmView()
         TMP_DIR = "tmp/"
         if os.path.exists(TMP_DIR):
@@ -87,18 +87,28 @@ class OwnerCog(commands.Cog):
         if view.value:
             await interaction.followup.send("Updating...", ephemeral=True)
 
+        try:
+            url = f"https://github.com/koralgeyser/discord-camera-bot/archive/refs/heads/{branch}.zip"
+            r = requests.get(url, allow_redirects=True)
+            buffer = io.BytesIO(r.content)
 
-        url = f"https://github.com/koralgeyser/discord-camera-bot/archive/refs/heads/{branch}.zip"
-        r = requests.get(url, allow_redirects=True)
-        buffer = io.BytesIO(r.content)
+            with zipfile.ZipFile(buffer, 'r') as zip:
+                zip.extractall(TMP_DIR)
+            
+            path = os.path.join(TMP_DIR, os.listdir(TMP_DIR)[0])
 
-        with zipfile.ZipFile(buffer, 'r') as zip:
-            zip.extractall(TMP_DIR)
-        
-        path = os.path.join(TMP_DIR, os.listdir(TMP_DIR)[0])
-        shutil.copytree(path, os.getcwd(), dirs_exist_ok=True) 
-        shutil.rmtree(path)
-        shutil.rmtree(TMP_DIR)
+            update_script = "update.sh" if sys.platform.startswith("linux") else "update.bat"
+            update_script = os.path.join(path, update_script)
+
+            subprocess.run([update_script])
+            subprocess.check_output(...)
+
+            shutil.copytree(path, os.getcwd(), dirs_exist_ok=True) 
+            shutil.rmtree(path)
+            shutil.rmtree(TMP_DIR)
+        except Exception as e:
+            await interaction.followup.send("Update failed.", ephemeral=True)
+            raise e
 
         if auto_restart:
             self.restart()

@@ -12,8 +12,7 @@
 
             // Event handler for server sent data.
             socket.on('updateClients', function(clientCount) {
-                document.getElementById('clientCount').innerHTML = `Connected Clients: ${clientCount}`
-                // $('#clientCount')[0].innerHTML = `Connected Clients: ${clientCount}`
+                $('#clientCount')[0].innerHTML = `Connected Clients: ${clientCount}`
             });
         });
     </script>

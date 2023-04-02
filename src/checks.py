@@ -1,8 +1,7 @@
 
-from typing import Callable, Optional, TypeVar, Union
+from typing import Callable, Optional, TypeVar
 from discord import Interaction
 from discord import app_commands
-from discord.ext import commands
 import config
 
 T = TypeVar('T')

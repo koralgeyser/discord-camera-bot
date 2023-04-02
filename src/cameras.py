@@ -1,6 +1,3 @@
-import io
-import re
-import subprocess
 import sys
 from typing import Any, Final
 import numpy as np
@@ -9,9 +6,8 @@ from abc import ABC, abstractmethod
 if sys.platform.startswith("linux"):
 	import picamera2
 	from picamera2.picamera2 import Picamera2
-	from picamera2.configuration import CameraConfiguration
 	from picamera2.encoders.mjpeg_encoder import MJPEGEncoder
-	from picamera2.outputs import FileOutput, FfmpegOutput
+	from picamera2.outputs import FileOutput
 	
 class Camera(ABC):
 	dtype: str
@@ -82,7 +78,6 @@ class RPiCamera(Camera):
 		pass
 
 	def snap(self):
-		from PIL import Image
 	    
 		request: picamera2.picamera2.CompletedRequest = self.picam2.capture_request()
 		snap: np.ndarray = request.make_array("main")
