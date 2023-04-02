@@ -6,3 +6,6 @@ pathvalidate
 reactionmenu
 simple-websocket
 opencv-python-headless
+quart
+dataclasses-json
+pygit2

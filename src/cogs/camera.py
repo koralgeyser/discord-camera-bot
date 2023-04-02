@@ -12,14 +12,24 @@ import discord
 from discord import app_commands
 import numpy as np
 import pathvalidate
-from discord.ext import tasks
+from discord.ext import tasks, commands
 from reactionmenu import ViewButton, ViewMenu, ViewSelect
 import constants
 from views.page_view import PageView
+import helpers.autocomplete
+from views.confirm_view import ConfirmView
 
-class Camera(app_commands.Group):
+
+class CameraCog(commands.Cog):
     is_timelapse_active = False
-    timelapse_group = app_commands.Group(name="timelapse", description="Timelapse from camera")
+    camera_group = app_commands.Group(name="camera", description="Camera")
+    timelapse_group = app_commands.Group(name="timelapse", description="Timelapse")
+
+    camera_group.add_command(timelapse_group)
+
+    def __init__(self, bot: commands.Bot):
+        super().__init__()
+        self.bot = bot
 
     @app_commands.describe(
         timepoints_file="List of timepoints. Supports '.csv'",
@@ -72,7 +82,6 @@ class Camera(app_commands.Group):
     @timelapse_group.command(name="cancel")
     async def timelapse_cancel(self, interaction: discord.Interaction):
         """Cancels current running timelapse."""
-        from views.confirm_view import ConfirmView
         view = ConfirmView()
             
         await interaction.response.send_message("Are you sure you want to cancel the timelapse?", view=view, ephemeral=True)
@@ -90,11 +99,10 @@ class Camera(app_commands.Group):
         interaction: discord.Interaction,
         current: str
     ) -> typing.List[app_commands.Choice[str]]:
-        timelapses: typing.List[str] = os.listdir(constants.FINISHED_TIMELAPSES_DIR)
-        filtered = list(filter(lambda timelapse: current.lower() in timelapse.lower(), timelapses))[:25]
+        
         return [
             app_commands.Choice(name=choice, value=choice)
-            for choice in filtered
+            for choice in helpers.autocomplete.get_autocomplete(current, os.listdir(constants.FINISHED_TIMELAPSES_DIR))
         ]
 
     @app_commands.describe(
@@ -147,7 +155,7 @@ class Camera(app_commands.Group):
         else:
             await interaction.response.send_message("There are no timelapse data.", ephemeral=True)
 
-    @app_commands.command()
+    @camera_group.command(name="snap")
     async def snap(self, interaction: discord.Interaction):
         """Gets a snap from the camera."""
         import cameras
@@ -163,15 +171,17 @@ class Camera(app_commands.Group):
         with io.BytesIO() as buffer:
             img.save(buffer, 'PNG')
             buffer.seek(0)
-            await interaction.followup.send(file=discord.File(fp=buffer, filename='snap.png'))
+            await interaction.followup.send(
+                file=discord.File(fp=buffer, filename='snap.png')
+            )
 
-        @app_commands.command()
-        async def camera_feed(interaction: discord.Interaction):
-            """Get link to camera feed. Can only view on local network."""
-            await interaction.response.send_message(f"http://{constants.HOST_NAME}:{constants.PORT}. Check my profile for the link as well.", ephemeral=True)
-
-
-
+    @camera_group.command(name="feed")
+    async def camera_feed(self, interaction: discord.Interaction):
+        """Get link to camera feed. Can only view on local network."""
+        await interaction.response.send_message(
+            f"http://{constants.HOST_NAME}:{constants.PORT}. Check my profile for the link as well.",
+            ephemeral=True
+        )
 
     @staticmethod
     def timelapse_data(name):
@@ -235,3 +245,6 @@ class Camera(app_commands.Group):
             self.is_timelapse_active = False
             if os.path.isdir(dir):
                 shutil.rmtree(dir)
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(CameraCog(bot))
