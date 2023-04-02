@@ -1,9 +1,11 @@
 flask
 flask-socketio
-# simple-websocket
+simple-websocket
 discord.py
 pathvalidate
 reactionmenu
 simple-websocket
 dataclasses-json
 simplejpeg
+pre-commit
+pillow

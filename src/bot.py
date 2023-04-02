@@ -6,11 +6,11 @@ import discord
 import cameras
 from discord.ext.commands import Bot
 import constants
-import helpers.cogs
 import logging.handlers
 import cogs
 import checks
 import config
+import helpers
 
 class CameraBot(Bot):
     def __init__(self) -> None:
@@ -21,7 +21,10 @@ class CameraBot(Bot):
             activity=discord.Activity(type=discord.ActivityType.watching, name="the lab"),
             log_handler=None
         )
+        self._setup_logger()
+        self.on_app_command_error = self.tree.error(self.on_app_command_error)
 
+    def _setup_logger(self):    
         self.logger = logging.getLogger('discord')
         self.logger.setLevel(logging.DEBUG)
         logging.getLogger('discord.http').setLevel(logging.INFO)
@@ -37,15 +40,13 @@ class CameraBot(Bot):
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
 
-        self.on_app_command_error = self.tree.error(self.on_app_command_error)
-
     async def on_ready(self):
         self.logger.info(f"Logged in as {self.user.name} (ID: {self.user.id})")
         self.logger.info(f"Camera Module: {cameras.camera_instance}")
         self.logger.info("------")
 
     async def load_cogs(self):
-        for cog in helpers.cogs.get_cogs():
+        for cog in helpers.get_cogs():
             try:
                 await self.load_extension(f"{cogs.__name__}.{cog}")
                 self.logger.info(f"Loaded '{cog}' cog")
@@ -59,7 +60,6 @@ class CameraBot(Bot):
         self.tree.copy_global_to(guild=guild)
         # await self.tree.sync(guild=guild)
 
-
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
         error_msg = "An error has occurred."
         if isinstance(error, checks.NotOwnerError):
@@ -72,18 +72,16 @@ class CameraBot(Bot):
                 await interaction.followup.send(error_msg, ephemeral=True)
             else:
                 await interaction.response.send_message(error_msg, ephemeral=True)
+        await self.log_error(error.__cause__)
             
-            embed = discord.Embed(
-                title=f"{type(error.__cause__).__name__}",
-                description=traceback.format_exc()
-            ).add_field(
-                name="Data",
-                value=str(interaction.data)
-            )
-
-            await self.get_channel(constants.DEV_CHANNEL_ID).send(embed=embed)
-            self.logger.error(traceback.format_exc())
-
+    async def log_error(self, e: Exception):
+        embed = discord.Embed(
+            title=f"{type(e).__name__}",
+            description=traceback.format_exc()
+        )
+        
+        await self.get_channel(constants.DEV_CHANNEL_ID).send(embed=embed)
+        self.logger.error(traceback.format_exc())
 
 def initialize_dirs():
     import constants

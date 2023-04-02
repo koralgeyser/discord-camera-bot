@@ -12,24 +12,21 @@ import discord
 from discord import app_commands
 import numpy as np
 import pathvalidate
-from discord.ext import tasks, commands
+from discord.ext import tasks
 from reactionmenu import ViewButton, ViewMenu, ViewSelect
 import constants
+from bot import CameraBot
 from views.page_view import PageView
-import helpers.autocomplete
+import helpers
 from views.confirm_view import ConfirmView
+from cogs import BaseCog
 
-
-class CameraCog(commands.Cog):
+class CameraCog(BaseCog):
     is_timelapse_active = False
     camera_group = app_commands.Group(name="camera", description="Camera")
     timelapse_group = app_commands.Group(name="timelapse", description="Timelapse")
 
     camera_group.add_command(timelapse_group)
-
-    def __init__(self, bot: commands.Bot):
-        super().__init__()
-        self.bot = bot
 
     @app_commands.describe(
         timepoints_file="List of timepoints. Supports '.csv'",
@@ -62,19 +59,26 @@ class CameraCog(commands.Cog):
         elif os.path.isdir(f"{constants.FINISHED_TIMELAPSES_DIR}/{name}"):
             await interaction.response.send_message("Failed to start. This name already exists.")
         else:
-            async def finished_callback():
+            async def finished_timelapse_task():
                 user = interaction.user
                 channel = interaction.channel
 
-                data = self.timelapse_data(name)
-                await channel.send(
-                    f"{user.mention} Timelapse has finished.",
-                    file=discord.File(
-                        fp=data,
-                        filename=f"<{name}.zip>")
-                )
+                if task.failed():
+                    await channel.send(
+                        f"{user.mention} An error has occurred with the timelapse."
+                    )
+                else:
+                    data = self.get_timelapse_data(name)
+                    await channel.send(
+                        f"{user.mention} Timelapse has finished.",
+                        file=discord.File(
+                            fp=data,
+                            filename=f"<{name}.zip>")
+                    )
+
             task = tasks.loop(count=1)(self.start_timelapse_task)
-            task.after_loop(finished_callback)
+            task.error(self.on_task_error)
+            task.after_loop(finished_timelapse_task)
             task.start(timepoints, name)
 
             await interaction.response.send_message("The timelapse has started.")
@@ -102,7 +106,7 @@ class CameraCog(commands.Cog):
         
         return [
             app_commands.Choice(name=choice, value=choice)
-            for choice in helpers.autocomplete.get_autocomplete(current, os.listdir(constants.FINISHED_TIMELAPSES_DIR))
+            for choice in helpers.get_autocomplete(current, os.listdir(constants.FINISHED_TIMELAPSES_DIR))
         ]
 
     @app_commands.describe(
@@ -113,7 +117,7 @@ class CameraCog(commands.Cog):
     @timelapse_group.command(name="data")
     async def timelapse_data(self, interaction: discord.Interaction, name: str, ephemeral: typing.Optional[bool] = False):
         """Get finished timelapse data."""
-        data = self.timelapse_data(name)
+        data = self.get_timelapse_data(name)
         return await interaction.response.send_message(
             file=discord.File(
                 fp=data,
@@ -184,7 +188,7 @@ class CameraCog(commands.Cog):
         )
 
     @staticmethod
-    def timelapse_data(name):
+    def get_timelapse_data(name):
         # Only finished timelapses atm
         buffer = io.BytesIO()
         dir = pathlib.Path(f"{constants.FINISHED_TIMELAPSES_DIR}/{name}/")
@@ -205,7 +209,8 @@ class CameraCog(commands.Cog):
         self.is_timelapse_active = True
 
         try:
-            # Send a result if there's an existing active or finished 
+            # Send a result if there's an existing active or finished
+            raise Exception("dsd")
             if not os.path.isdir(dir):
                 os.makedirs(dir)
 
@@ -240,11 +245,11 @@ class CameraCog(commands.Cog):
                     json.dump(metadata, f, ensure_ascii=False, indent=4)
             shutil.move(dir, f"{constants.FINISHED_TIMELAPSES_DIR}/{name}")
             self.is_timelapse_active = False
-        except:
-            # Maybe add errors as well
+        except Exception as e:
             self.is_timelapse_active = False
             if os.path.isdir(dir):
                 shutil.rmtree(dir)
+            raise e
 
-async def setup(bot: commands.Bot):
+async def setup(bot: CameraBot):
     await bot.add_cog(CameraCog(bot))

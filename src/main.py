@@ -1,5 +1,6 @@
 from threading import Thread
-import bot, websocket.app
+import bot
+import websocket.app
 
 x = Thread(target=websocket.app.start, daemon=True)
 x.start()

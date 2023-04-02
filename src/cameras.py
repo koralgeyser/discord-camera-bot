@@ -78,7 +78,6 @@ class RPiCamera(Camera):
 		pass
 
 	def snap(self):
-	    
 		request: picamera2.picamera2.CompletedRequest = self.picam2.capture_request()
 		snap: np.ndarray = request.make_array("main")
 		request.release()
@@ -155,7 +154,7 @@ class DummyCamera(Camera):
 		return '\n'.join(msg)
 
 def _setup_camera() -> Camera:
-	"""'Statically' called during run time"""
+	"""Statically called at run time"""
 	if sys.platform.startswith("linux"):
 		try:
 			return RPiCamera()

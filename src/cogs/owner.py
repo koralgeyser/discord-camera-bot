@@ -10,17 +10,17 @@ import cogs
 import config
 import constants
 import discord
-import helpers.autocomplete
-import helpers.cogs
+import helpers
 import requests
 from discord import app_commands
 from discord.ext import commands
 from reactionmenu import ViewButton, ViewMenu, ViewSelect
 from views.confirm_view import ConfirmView
 from views.page_view import PageView
+from bot import CameraBot
+from cogs import BaseCog
 
-
-class OwnerCog(commands.Cog):
+class OwnerCog(BaseCog):
     maintenance_group = app_commands.Group(
         name="bot",
         description="Bot",
@@ -41,15 +41,10 @@ class OwnerCog(commands.Cog):
 
     maintenance_group.add_command(cog_group)
     maintenance_group.add_command(config_group)
-    
-    def __init__(self, bot: commands.Bot):
-        super().__init__()
-        self.bot = bot
 
     @staticmethod
     def restart():
         os.execv(sys.executable, ['python'] + sys.argv)
-
 
     @checks.is_owner()
     @app_commands.describe(file="Config JSON file.")
@@ -170,7 +165,7 @@ class OwnerCog(commands.Cog):
     ) -> typing.List[app_commands.Choice[str]]:
         return [
             app_commands.Choice(name=choice, value=choice)
-            for choice in helpers.autocomplete.get_autocomplete(current, os.listdir(constants.LOGS_DIR))
+            for choice in helpers.get_autocomplete(current, os.listdir(constants.LOGS_DIR))
         ]
 
     @checks.is_owner()
@@ -194,7 +189,7 @@ class OwnerCog(commands.Cog):
     ) -> typing.List[app_commands.Choice[str]]:
         return [
             app_commands.Choice(name=choice, value=choice)
-            for choice in helpers.autocomplete.get_autocomplete(current, helpers.cogs.get_cogs())
+            for choice in helpers.get_autocomplete(current, helpers.get_cogs())
         ]
 
     @checks.is_owner()
@@ -239,7 +234,7 @@ class OwnerCog(commands.Cog):
     async def extension_reload(self, interaction: discord.Interaction, name: typing.Optional[str] = None, all: typing.Optional[bool] = False):
         """Reloads a cog."""
         if all:
-            for cog in helpers.cogs.get_cogs():
+            for cog in helpers.get_cogs():
                 await self.bot.reload_extension(f"{cogs.__name__}.{cog}")
             return await interaction.response.send_message("Successfully reloaded all cogs.", ephemeral=True)
         if name:
@@ -257,7 +252,7 @@ class OwnerCog(commands.Cog):
     @cog_group.command(name="list")
     async def extension_list(self, interaction: discord.Interaction):
         """Lists cogs."""
-        cogs: typing.List[str] = helpers.cogs.get_cogs()
+        cogs: typing.List[str] = helpers.get_cogs()
         if cogs_count := len(cogs):
             menu = PageView(interaction, menu_type=ViewMenu.TypeEmbed)
             # 10 items per page
@@ -286,5 +281,5 @@ class OwnerCog(commands.Cog):
         else:
             await interaction.response.send_message("There are no cogs.", ephemeral=True)
 
-async def setup(bot: commands.Bot):
+async def setup(bot: CameraBot):
     await bot.add_cog(OwnerCog(bot))
