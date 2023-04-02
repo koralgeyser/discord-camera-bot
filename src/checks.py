@@ -1,14 +1,15 @@
-
 from typing import Callable, Optional, TypeVar
 from discord import Interaction
 from discord import app_commands
 import config
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class NotOwnerError(app_commands.errors.CheckFailure):
     def __init__(self, message: Optional[str] = None) -> None:
         super().__init__(message or "Only owners of this bot can use this command.")
+
 
 def is_owner() -> Callable[[T], T]:
     def predicate(interaction: Interaction) -> bool:
