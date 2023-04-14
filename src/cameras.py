@@ -1,14 +1,17 @@
+import io
 import sys
+from threading import Thread
+import time
 from typing import Any, Final
 import numpy as np
 from abc import ABC, abstractmethod
+import simplejpeg
 
 if sys.platform.startswith("linux"):
     import picamera2
     from picamera2.picamera2 import Picamera2
     from picamera2.encoders.mjpeg_encoder import MJPEGEncoder
     from picamera2.outputs import FileOutput
-
 
 class Camera(ABC):
     dtype: str
@@ -20,7 +23,7 @@ class Camera(ABC):
         pass
 
     @abstractmethod
-    def snap(self):
+    def snap(self) -> np.ndarray:
         pass
 
     @abstractmethod
@@ -33,7 +36,7 @@ class Camera(ABC):
 
     @property
     def metadata(self):
-        return dict(name=self.name, dtype=str(self.dtype), shape=self.shape)
+        return dict(name=self.__str__(), dtype=str(self.dtype), shape=self.shape)
 
 
 class RPiCamera(Camera):
@@ -44,9 +47,10 @@ class RPiCamera(Camera):
         # Still images from main stream
         # Video stream from lores stream
         res = self.picam2.sensor_resolution
+        self.shape = (int(res[0]), int(res[1]))
         video_config = self.picam2.create_video_configuration(
-            main={"size": (int(res[0] / 1.5), int(res[1] / 1.5))},
-            lores={"size": (1332, 990)},
+            main={"size": self.shape},
+            lores={"size": (800, 400)},
             encode="lores",
             # 10 FPS
             controls={"FrameDurationLimits": (100000, 100000)},
@@ -57,7 +61,6 @@ class RPiCamera(Camera):
         self.dtype = "uint8"
         self.gain = 1.0
         self.exposure = 10000  # us
-        self.name = "libcamera raspberry pi cam"
         # self.set_params({})
         self.last = None
 
@@ -74,6 +77,7 @@ class RPiCamera(Camera):
         request: picamera2.picamera2.CompletedRequest = self.picam2.capture_request()
         snap: np.ndarray = request.make_array("main")
         request.release()
+        self.shape = snap.shape
         # Add logging here
         # try:
         # except:
@@ -118,27 +122,39 @@ class DummyCamera(Camera):
         with open("data/sample_snap.npy", mode="rb") as fs:
             p = fs.read()
         self.parappa = (
-            np.frombuffer(p, dtype="uint8").reshape((64, 64)).astype("double") / 255.0
+            np.frombuffer(p, dtype="uint8").reshape(self.shape).astype("double") / 255.0
         )
         self.exposure = 50.0
-        self.name = "parappa cam"
-        self.last = None
-        self.snap()
+        self.last: np.ndarray = None
 
     def __str__(self) -> str:
         return "Dummy Camera"
 
-    def snap(self):
+    def snap(self) -> np.ndarray:
         self.last = np.random.poisson(
             (self.parappa * 10.0 + 1.0) * self.exposure
         ).astype("uint16")
         return self.last
 
-    def start_stream(self, output):
-        pass
+    def start_stream(self, output: io.BufferedIOBase):
+        self.is_streaming = True
+        def stream():
+            while True:
+                # 5 FPS
+                time.sleep(0.2)
+                if not self.is_streaming:
+                    break
+                
+                output.write(
+                    simplejpeg.encode_jpeg(np.random.randint(0, 255, size=(600, 1280, 3), dtype=np.uint8))
+                )
 
-    def stop_stream(self):
-        pass
+        self.worker = Thread(target=stream)
+        self.worker.start()
+
+    def stop_stream(self,):
+        self.is_streaming = False
+        self.worker.join()
 
     def set_params(self, params):
         msg = []
@@ -166,9 +182,8 @@ def _setup_camera() -> Camera:
 
 camera_instance: Final[Camera] = _setup_camera()
 
-# if __name__=='__main__':
-# 	# live_stream()
-# 	import matplotlib.pyplot as plt
-# 	snap = camera_instance.snap()
-# 	plt.imshow(snap)
-# 	plt.show()
+if __name__=='__main__':
+	import matplotlib.pyplot as plt
+	snap = camera_instance.snap()
+	plt.imshow(snap)
+	plt.show()

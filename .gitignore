@@ -153,3 +153,4 @@ cython_debug/
 
 data/
 config.json
+google_service.json

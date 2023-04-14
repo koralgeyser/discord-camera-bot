@@ -1,31 +1,25 @@
-import io
 import logging
 import os
 import shutil
-import subprocess
-import sys
 import traceback
-import typing
-import zipfile
 import discord
-import requests
 import cameras
-from discord.ext.commands import Bot
+from discord.ext import commands
 import constants
 import logging.handlers
-import cogs
 import checks
 import config
 import helpers
-from views.confirm_view import ConfirmView
-from discord import app_commands
 
-
-class CameraBot(Bot):
+class CameraBot(commands.Bot):
     def __init__(self) -> None:
+        intents = discord.Intents.default()
+        # intents.members = True
+        # intents.message_content = True
+
         super().__init__(
-            command_prefix=None,
-            intents=discord.Intents.default(),
+            command_prefix=config.CONFIG.bot_command_prefix,
+            intents=intents,
             help_command=None,
             activity=discord.Activity(
                 type=discord.ActivityType.watching, name="the lab"
@@ -44,7 +38,7 @@ class CameraBot(Bot):
         handler = logging.handlers.RotatingFileHandler(
             filename=f"{constants.LOGS_DIR}/discord.log",
             encoding="utf-8",
-            maxBytes=5 * 1024 * 1024,  # 32 MiB
+            maxBytes=500 * 1000,  # 5 KB
             backupCount=5,  # Rotate through 5 files
         )
         dt_fmt = "%Y-%m-%d %H:%M:%S"
@@ -59,11 +53,13 @@ class CameraBot(Bot):
         self.logger.info(f"Camera Module: {cameras.camera_instance}")
         self.logger.info("------")
         if not self.load_cogs_success:
-            await self.get_channel(constants.DEV_CHANNEL_ID).send(
+            await self.get_channel(config.CONFIG.dev_channel_id).send(
                 "STARTUP: Failed to load all cogs."
             )
 
     async def load_cogs(self):
+        import cogs
+
         for cog in helpers.get_cogs():
             try:
                 await self.load_extension(f"{cogs.__name__}.{cog}")
@@ -75,7 +71,7 @@ class CameraBot(Bot):
 
     async def setup_hook(self):
         await self.load_cogs()
-        guild = discord.Object(id=constants.DEV_GUILD_ID)
+        guild = discord.Object(id=config.CONFIG.dev_guild_id)
         self.tree.copy_global_to(guild=guild)
         # await self.tree.sync(guild=guild)
 
@@ -104,7 +100,7 @@ class CameraBot(Bot):
             title=f"{type(e).__name__}", description=traceback.format_exc()
         )
 
-        await self.get_channel(constants.DEV_CHANNEL_ID).send(embed=embed)
+        await self.get_channel(config.CONFIG.dev_channel_id).send(embed=embed)
         self.logger.error(traceback.format_exc())
 
 
@@ -125,62 +121,36 @@ def initialize_dirs():
             constants.INCOMPLETE_TIMELAPSES_DIR,
         )
 
+# @commands.is_owner()
+# @bot.command()
+# async def safemode_update(
+#     ctx: commands.Context,
+#     branch: str,
+# ):
+#     """Update bot."""
+#     bot: commands.Bot = ctx.bot
+#     msg = await ctx.send("Are you sure you want me to update?")
+#     yes_react = "✅"
+#     no_react = "❎"
+#     reactions = [yes_react, no_react]
+#     for react in reactions:
+#         msg.add_reaction(react)
+
+#     def check(reaction: discord.Reaction, user: discord.User) -> bool:
+#         return user == ctx.author and reaction.emoji == yes_react
+    
+#     try:
+#         x = await bot.wait_for("reaction_add", check=check, timeout=5.0)
+#         print(x)
+#     except asyncio.TimeoutError:
+#         return await msg.channel.send("Timed out.")
+
+#     # helpers.update(branch)
 
 def run():
     initialize_dirs()
 
     bot = CameraBot()
-
-    @checks.is_owner()
-    @app_commands.describe(
-        branch="Branch to update from. Defaults to 'main'.",
-        auto_restart="Auto restart after updating? Defaults to False.",
-    )
-    @bot.tree.command()
-    async def safemode_update(
-        interaction: discord.Interaction,
-        branch: typing.Optional[str] = "main",
-        auto_restart: typing.Optional[bool] = False,
-    ):
-        """Update bot."""
-        view = ConfirmView()
-        TMP_DIR = "tmp/"
-        if os.path.exists(TMP_DIR):
-            shutil.rmtree(TMP_DIR)
-        await interaction.response.send_message(
-            "Are you sure you want me to update?", view=view, ephemeral=True
-        )
-        await view.wait(interaction)
-        if view.value:
-            await interaction.followup.send("Updating...", ephemeral=True)
-
-            try:
-                url = f"https://github.com/koralgeyser/discord-camera-bot/archive/refs/heads/{branch}.zip"
-                r = requests.get(url, allow_redirects=True)
-                buffer = io.BytesIO(r.content)
-
-                with zipfile.ZipFile(buffer, "r") as zip:
-                    zip.extractall(TMP_DIR)
-
-                path = os.path.join(TMP_DIR, os.listdir(TMP_DIR)[0])
-                requirements = os.path.join(path, "requirements.txt")
-                subprocess.run(
-                    f"{sys.executable} -m pip install -r {requirements}"
-                ).check_returncode()
-                shutil.copytree(path, os.getcwd(), dirs_exist_ok=True)
-
-                if auto_restart:
-                    await interaction.followup.send(
-                        "Update complete. Restarting now...", ephemeral=True
-                    )
-                    helpers.restart()
-                else:
-                    await interaction.followup.send("Update complete.", ephemeral=True)
-            except Exception as e:
-                raise e
-            finally:
-                shutil.rmtree(TMP_DIR)
-
     bot.run(config.CONFIG.discord_token, reconnect=True)
 
 

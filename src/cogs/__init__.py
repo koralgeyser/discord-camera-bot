@@ -1,7 +1,6 @@
 from discord.ext import commands
 from bot import CameraBot
 
-
 class BaseCog(commands.Cog):
     def __init__(self, bot: CameraBot):
         super().__init__()

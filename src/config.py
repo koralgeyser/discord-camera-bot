@@ -10,6 +10,10 @@ from dataclasses_json import dataclass_json
 @dataclass
 class Config:
     discord_token: str
+    bot_command_prefix: str
+    dev_guild_id: int
+    dev_channel_id: int
+    drive_folder_id: str
     owners: List[int]
 
     def update(self):

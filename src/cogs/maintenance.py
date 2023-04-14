@@ -1,45 +1,33 @@
-import io
 import os
-import shutil
-import subprocess
-import sys
 import typing
-import zipfile
 import checks
 import cogs
 import config
 import constants
 import discord
 import helpers
-import requests
 from discord import app_commands
 from discord.ext import commands
-from reactionmenu import ViewButton, ViewMenu, ViewSelect
 from views.confirm_view import ConfirmView
-from views.page_view import PageView
 from bot import CameraBot
 from cogs import BaseCog
 
 
-class OwnerCog(BaseCog):
+class MaintenanceCog(BaseCog):
     maintenance_group = app_commands.Group(
-        name="bot", description="Bot", guild_ids=[constants.DEV_GUILD_ID]
+        name="bot", description="Bot", guild_ids=[config.CONFIG.dev_guild_id]
     )
 
     cog_group = app_commands.Group(
-        name="cog", description="Cog", guild_ids=[constants.DEV_GUILD_ID]
+        name="cog", description="Cog", guild_ids=[config.CONFIG.dev_guild_id]
     )
 
     config_group = app_commands.Group(
-        name="config", description="Config", guild_ids=[constants.DEV_GUILD_ID]
+        name="config", description="Config", guild_ids=[config.CONFIG.dev_guild_id]
     )
 
     maintenance_group.add_command(cog_group)
     maintenance_group.add_command(config_group)
-
-    @staticmethod
-    def restart():
-        os.execv(sys.executable, ["python"] + sys.argv)
 
     @checks.is_owner()
     @app_commands.describe(file="Config JSON file.")
@@ -76,47 +64,27 @@ class OwnerCog(BaseCog):
     ):
         """Update bot."""
         view = ConfirmView()
-        TMP_DIR = "tmp/"
-        if os.path.exists(TMP_DIR):
-            shutil.rmtree(TMP_DIR)
         await interaction.response.send_message(
             "Are you sure you want me to update?", view=view, ephemeral=True
         )
         await view.wait(interaction)
         if view.value:
             await interaction.followup.send("Updating...", ephemeral=True)
+            await helpers.async_update(branch)
 
-            try:
-                url = f"https://github.com/koralgeyser/discord-camera-bot/archive/refs/heads/{branch}.zip"
-                r = requests.get(url, allow_redirects=True)
-                buffer = io.BytesIO(r.content)
+            if auto_restart:
+                await interaction.followup.send(
+                    "Update complete. Restarting now...", ephemeral=True
+                )
+                helpers.restart()
+            else:
+                await interaction.followup.send("Update complete.", ephemeral=True)
 
-                with zipfile.ZipFile(buffer, "r") as zip:
-                    zip.extractall(TMP_DIR)
-
-                path = os.path.join(TMP_DIR, os.listdir(TMP_DIR)[0])
-                requirements = os.path.join(path, "requirements.txt")
-                subprocess.run(
-                    f"{sys.executable} -m pip install -r {requirements}"
-                ).check_returncode()
-                shutil.copytree(path, os.getcwd(), dirs_exist_ok=True)
-
-                if auto_restart:
-                    await interaction.followup.send(
-                        "Update complete. Restarting now...", ephemeral=True
-                    )
-                    helpers.restart()
-                else:
-                    await interaction.followup.send("Update complete.", ephemeral=True)
-            except Exception as e:
-                raise e
-            finally:
-                shutil.rmtree(TMP_DIR)
 
     @checks.is_owner()
     @maintenance_group.command(name="restart")
     async def bot_restart(self, interaction: discord.Interaction):
-        """Update and restart bot."""
+        """Restart bot."""
         view = ConfirmView()
         await interaction.response.send_message(
             "Are you sure you want me to restart?", view=view, ephemeral=True
@@ -124,7 +92,7 @@ class OwnerCog(BaseCog):
         await view.wait(interaction)
         if view.value:
             await interaction.followup.send("Restarting...", ephemeral=True)
-            self.restart()
+            helpers.restart()
 
     @checks.is_owner()
     @maintenance_group.command(name="shutdown")
@@ -143,7 +111,7 @@ class OwnerCog(BaseCog):
     @app_commands.describe(id="Server ID to sync to. Defaults to current server.")
     @maintenance_group.command(name="sync")
     async def bot_sync(
-        self, interaction: discord.Interaction, id: typing.Optional[int] = None
+        self, interaction: discord.Interaction, id: typing.Optional[str] = None
     ):
         """Sync slash commands."""
 
@@ -155,7 +123,7 @@ class OwnerCog(BaseCog):
         )
         await view.wait(interaction)
         if view.value:
-            guild = discord.Object(id=interaction.guild_id)
+            guild = discord.Object(id=id)
             self.bot.tree.copy_global_to(guild=guild)
             await self.bot.tree.sync(guild=guild)
             await interaction.followup.send("Synced!", ephemeral=True)
@@ -271,44 +239,43 @@ class OwnerCog(BaseCog):
                     "Failed to reload cog.", ephemeral=True
                 )
 
-    @checks.is_owner()
-    @cog_group.command(name="list")
-    async def extension_list(self, interaction: discord.Interaction):
-        """Lists cogs."""
-        cogs: typing.List[str] = helpers.get_cogs()
-        if cogs_count := len(cogs):
-            menu = PageView(interaction, menu_type=ViewMenu.TypeEmbed)
-            # 10 items per page
-            ITEMS_PER_PAGE = 10
-            count = cogs_count // ITEMS_PER_PAGE
-            remainder = cogs_count % ITEMS_PER_PAGE
-            for x in range(count):
-                menu.add_page(
-                    discord.Embed(
-                        title="Timelapses",
-                        description="\n".join(
-                            cogs[x * ITEMS_PER_PAGE : (x + 1) * ITEMS_PER_PAGE]
-                        ),
-                    )
-                )
+    # @checks.is_owner()
+    # @cog_group.command(name="list")
+    # async def extension_list(self, interaction: discord.Interaction):
+    #     """Lists cogs."""
+    #     cogs: typing.List[str] = helpers.get_cogs()
+    #     if cogs_count := len(cogs):
+    #         menu = PageView(interaction, menu_type=ViewMenu.TypeEmbed)
+    #         # 10 items per page
+    #         ITEMS_PER_PAGE = 10
+    #         count = cogs_count // ITEMS_PER_PAGE
+    #         remainder = cogs_count % ITEMS_PER_PAGE
+    #         for x in range(count):
+    #             menu.add_page(
+    #                 discord.Embed(
+    #                     title="Timelapses",
+    #                     description="\n".join(
+    #                         cogs[x * ITEMS_PER_PAGE : (x + 1) * ITEMS_PER_PAGE]
+    #                     ),
+    #                 )
+    #             )
 
-            if remainder:
-                cogs_slice = cogs[cogs_count - remainder :]
-                menu.add_page(
-                    discord.Embed(title="Timelapses", description="\n".join(cogs_slice))
-                )
+    #         if remainder:
+    #             cogs_slice = cogs[cogs_count - remainder :]
+    #             menu.add_page(
+    #                 discord.Embed(title="Timelapses", description="\n".join(cogs_slice))
+    #             )
 
-            menu.add_go_to_select(
-                ViewSelect.GoTo(title="Go to page...", page_numbers=...)
-            )
-            menu.add_button(ViewButton.back())
-            menu.add_button(ViewButton.next())
-            await menu.start()
-        else:
-            await interaction.response.send_message(
-                "There are no cogs.", ephemeral=True
-            )
-
+    #         menu.add_go_to_select(
+    #             ViewSelect.GoTo(title="Go to page...", page_numbers=...)
+    #         )
+    #         menu.add_button(ViewButton.back())
+    #         menu.add_button(ViewButton.next())
+    #         await menu.start()
+    #     else:
+    #         await interaction.response.send_message(
+    #             "There are no cogs.", ephemeral=True
+    #         )
 
 async def setup(bot: CameraBot):
-    await bot.add_cog(OwnerCog(bot))
+    await bot.add_cog(MaintenanceCog(bot))
