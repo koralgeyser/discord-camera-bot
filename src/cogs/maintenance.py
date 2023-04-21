@@ -123,6 +123,7 @@ class MaintenanceCog(BaseCog):
         )
         await view.wait(interaction)
         if view.value:
+            id = id if id else interaction.guild_id
             guild = discord.Object(id=id)
             self.bot.tree.copy_global_to(guild=guild)
             await self.bot.tree.sync(guild=guild)
