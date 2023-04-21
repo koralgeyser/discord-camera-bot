@@ -116,6 +116,9 @@ def initialize_dirs():
 
     # Move any active timelapses that are now in limbo due to w/e reason to incomplete
     for dir in os.listdir(constants.ACTIVE_TIMELAPSES_DIR):
+        incomplete_path = f"{constants.INCOMPLETE_TIMELAPSES_DIR}/{dir}"
+        if os.path.exists(incomplete_path):
+            shutil.rmtree(incomplete_path)
         shutil.move(
             f"{constants.ACTIVE_TIMELAPSES_DIR}/{dir}",
             constants.INCOMPLETE_TIMELAPSES_DIR,

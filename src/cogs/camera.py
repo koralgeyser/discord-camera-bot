@@ -55,8 +55,7 @@ class CameraCog(BaseCog):
                         f"{user.mention} An error has occurred with the timelapse."
                     )
                 else:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(None, helpers.upload_to_google_folder,
+                    await asyncio.to_thread(helpers.upload_to_google_folder,
                         f"{name}.zip",
                         CONFIG.drive_folder_id,
                         helpers.get_timelapse_data(name)
@@ -91,6 +90,20 @@ class CameraCog(BaseCog):
                 await interaction.followup.send(
                     "There was no active timelapse to cancel.", ephemeral=True
                 )
+
+    @timelapse_group.command(name="progress")
+    async def timelapse_progress(self, interaction: discord.Interaction):
+        """Get progress of timelapse."""
+        if self.is_timelapse_active:
+            await interaction.response.send_message(
+                f"{self.progress}/{self.total} completed. ETA: {datetime.timedelta(seconds=self.interval * (self.total - self.progress))}",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "There is no active timelapse.", ephemeral=True
+            )
+
 
     @timelapse_group.command(name="list")
     async def timelapse_list(self, interaction: discord.Interaction):
@@ -139,15 +152,19 @@ class CameraCog(BaseCog):
         dir = f"{constants.ACTIVE_TIMELAPSES_DIR}/{name}"
         self.is_timelapse_active = True
 
-        SLEEP_TIME = 1
+        SLEEP_TIME = 0.1
         try:
             if not os.path.isdir(dir):
                 os.makedirs(dir)
 
             metadata = cameras.camera_instance.metadata
             t0 = time.time()
+            data = list()
             metadata["start_time"] = str(datetime.datetime.fromtimestamp(t0))
+            self.total = count
+            self.interval = interval
             for i in range(count):
+                self.progress = i
                 time_up = i * interval
                 while True:
                     # Sleep at most SLEEP_TIME
@@ -161,8 +178,9 @@ class CameraCog(BaseCog):
                         return
 
                 metadata["snaps"] = i
-                with open(f"{dir}/{name}.npy", mode="ab") as f:
-                    np.save(f, cameras.camera_instance.snap())
+                snap = await asyncio.to_thread(cameras.camera_instance.snap)
+                data.append(snap)
+                await asyncio.to_thread(np.save, f"{dir}/{name}.npy", data)
                 with open(f"{dir}/{name}.json", "wt", encoding="utf-8") as f:
                     json.dump(metadata, f, ensure_ascii=False, indent=4)
             shutil.move(dir, f"{constants.FINISHED_TIMELAPSES_DIR}/{name}")

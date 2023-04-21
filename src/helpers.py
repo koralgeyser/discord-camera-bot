@@ -1,3 +1,4 @@
+import asyncio
 import io
 import pathlib
 import shutil
@@ -41,9 +42,13 @@ async def async_update(branch: str):
                     os.path.join(TMP_DIR, os.listdir(TMP_DIR)[0])                
                 )
                 requirements = os.path.join(path, "requirements.txt")
-                subprocess.run(
-                    f"{sys.executable} -m pip install -r {requirements}"
-                ).check_returncode()
+                res = await asyncio.to_thread(
+                    subprocess.run,
+                    f"{sys.executable} -m pip install -r {requirements}",
+                    shell=True
+                )
+                res.check_returncode()
+                shutil.rmtree("src")
                 shutil.copytree(path, os.getcwd(), dirs_exist_ok=True)
     except Exception as e:
         raise e
@@ -85,3 +90,12 @@ def upload_to_google_folder(filename: str, folder_id: str, buffer: io.BytesIO):
     response = None
     while response is None:
         _, response = request.next_chunk()
+
+def move_dir(src, dest):
+    for dir in os.listdir(src):
+        move_file(os.path.join(src, dir), os.path.join(dest, dir))
+
+def move_file(src, dest):
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    shutil.move(src, dest)
