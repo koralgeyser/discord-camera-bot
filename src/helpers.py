@@ -36,7 +36,10 @@ async def async_update(branch: str):
                 with zipfile.ZipFile(buffer, "r") as zip:
                     zip.extractall(TMP_DIR)
 
-                path = os.path.join(TMP_DIR, os.listdir(TMP_DIR)[0])
+                path = os.path.join(
+                    os.getcwd(),
+                    os.path.join(TMP_DIR, os.listdir(TMP_DIR)[0])                
+                )
                 requirements = os.path.join(path, "requirements.txt")
                 subprocess.run(
                     f"{sys.executable} -m pip install -r {requirements}"
