@@ -31,7 +31,7 @@ async def async_update(branch: str):
         url = f"https://github.com/koralgeyser/discord-camera-bot/archive/refs/heads/{branch}.zip"
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as r:
-                buffer = io.BytesIO(r.content)
+                buffer = io.BytesIO(await r.content.read())
 
                 with zipfile.ZipFile(buffer, "r") as zip:
                     zip.extractall(TMP_DIR)
@@ -45,7 +45,8 @@ async def async_update(branch: str):
     except Exception as e:
         raise e
     finally:
-        shutil.rmtree(TMP_DIR)
+        if os.path.exists(TMP_DIR):
+            shutil.rmtree(TMP_DIR)
 
 def get_timelapse_data(name):
     # Only finished timelapses atm
