@@ -50,7 +50,7 @@ class RPiCamera(Camera):
         self.shape = (int(res[0]), int(res[1]))
         video_config = self.picam2.create_video_configuration(
             main={"size": self.shape},
-            lores={"size": (800, 400)},
+            lores={"size": (int(self.shape[0]/10), int(self.shape[1]/10))},
             encode="lores",
             # 10 FPS
             controls={"FrameDurationLimits": (100000, 100000)},

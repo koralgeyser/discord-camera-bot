@@ -4,12 +4,10 @@ import io
 import json
 import os
 import shutil
-import socket
 import time
 import discord
 from discord import app_commands
 import numpy as np
-from discord.ext import tasks
 import constants
 from bot import CameraBot
 import helpers
@@ -46,28 +44,71 @@ class CameraCog(BaseCog):
                 "Failed to start. This name already exists."
             )
         else:
-            async def finished_timelapse_task():
+            
+            async def timelapse_task():
+                import cameras
+                await self.bot.wait_until_ready()
+
                 user = interaction.user
                 channel = interaction.channel
 
-                if task.failed():
+                dir = f"{constants.ACTIVE_TIMELAPSES_DIR}/{name}"
+                self.is_timelapse_active = True
+
+                SLEEP_TIME = 0.5
+                try:
+                    if not os.path.isdir(dir):
+                        os.makedirs(dir)
+
+                    metadata = cameras.camera_instance.metadata
+                    t0 = time.time()
+                    metadata["start_time"] = str(datetime.datetime.fromtimestamp(t0))
+                    data = []
+                    self.total = count
+                    self.interval = interval
+
+                    for i in range(count):
+                        self.progress = i
+                        time_up = i * interval
+                        while True:
+                            # Sleep at most SLEEP_TIME
+                            await asyncio.sleep(SLEEP_TIME)
+                            dt = time.time() - t0
+                            if dt >= time_up:
+                                break
+                            if not self.is_timelapse_active:
+                                if os.path.isdir(dir):
+                                    shutil.rmtree(dir)
+                                return
+
+                        metadata["snaps"] = i
+                        data.append(await asyncio.to_thread(cameras.camera_instance.snap))
+
+                    np.savez(f"{dir}/{name}", data)
+                    with open(f"{dir}/{name}.json", "wt", encoding="utf-8") as f:
+                        json.dump(metadata, f, ensure_ascii=False, indent=4)
+                    shutil.move(dir, f"{constants.FINISHED_TIMELAPSES_DIR}/{name}")
+                    self.is_timelapse_active = False
+                except Exception as e:
+                    self.is_timelapse_active = False
+                    if os.path.isdir(dir):
+                        shutil.rmtree(dir)
                     await channel.send(
                         f"{user.mention} An error has occurred with the timelapse."
                     )
-                else:
-                    await asyncio.to_thread(helpers.upload_to_google_folder,
-                        f"{name}.zip",
-                        CONFIG.drive_folder_id,
-                        helpers.get_timelapse_data(name)
-                    )
-                    await channel.send(
-                        f"{user.mention} '{name}' timelapse has finished: https://drive.google.com/drive/folders/{CONFIG.drive_folder_id}?usp=sharing.",
-                    )
+                    raise e
 
-            task = tasks.loop(count=1)(self.start_timelapse_task)
-            task.error(self.on_task_error)
-            task.after_loop(finished_timelapse_task)
-            task.start(interval, count, name)
+                data = await asyncio.to_thread(helpers.get_timelapse_data, name)
+                await asyncio.to_thread(helpers.upload_to_google_folder,
+                    f"{name}.zip",
+                    CONFIG.drive_folder_id,
+                    data
+                )
+                await channel.send(
+                    f"{user.mention} '{name}' timelapse has finished: https://drive.google.com/drive/folders/{CONFIG.drive_folder_id}?usp=sharing.",
+                )
+            
+            self.bot.loop.create_task(timelapse_task())
 
             await interaction.response.send_message(f"Timelapse '{name}' has started. ETA: {datetime.timedelta(seconds=interval * count)}")
 
@@ -121,10 +162,7 @@ class CameraCog(BaseCog):
 
         await interaction.response.defer()
 
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, cameras.camera_instance.snap)
-
-        snap = cameras.camera_instance.snap()
+        snap = await asyncio.to_thread(cameras.camera_instance.snap)
         buffer = io.BytesIO()
         img = Image.fromarray(snap)
 
@@ -139,57 +177,13 @@ class CameraCog(BaseCog):
     @camera_group.command(name="feed")
     async def camera_feed(self, interaction: discord.Interaction):
         """Get link to camera feed. Can only view on local network."""
-        hostname = socket.gethostname()
-        ip = socket.gethostbyname(hostname)
-
+        # hostname = socket.gethostname()
+        # ip = socket.gethostbyname(hostname)
+        ip = "192.168.0.126"
         await interaction.response.send_message(
-            f"View at http://{ip}:{constants.PORT} or http://{hostname}:{constants.PORT}",
+            f"View at http://{ip}:{constants.PORT}",
             ephemeral=True,
         )
-
-    async def start_timelapse_task(self, interval, count, name):
-        import cameras
-        dir = f"{constants.ACTIVE_TIMELAPSES_DIR}/{name}"
-        self.is_timelapse_active = True
-
-        SLEEP_TIME = 0.1
-        try:
-            if not os.path.isdir(dir):
-                os.makedirs(dir)
-
-            metadata = cameras.camera_instance.metadata
-            t0 = time.time()
-            data = list()
-            metadata["start_time"] = str(datetime.datetime.fromtimestamp(t0))
-            self.total = count
-            self.interval = interval
-            for i in range(count):
-                self.progress = i
-                time_up = i * interval
-                while True:
-                    # Sleep at most SLEEP_TIME
-                    await asyncio.sleep(SLEEP_TIME)
-                    dt = time.time() - t0
-                    if dt >= time_up:
-                        break
-                    if not self.is_timelapse_active:
-                        if os.path.isdir(dir):
-                            shutil.rmtree(dir)
-                        return
-
-                metadata["snaps"] = i
-                snap = await asyncio.to_thread(cameras.camera_instance.snap)
-                data.append(snap)
-                await asyncio.to_thread(np.save, f"{dir}/{name}.npy", data)
-                with open(f"{dir}/{name}.json", "wt", encoding="utf-8") as f:
-                    json.dump(metadata, f, ensure_ascii=False, indent=4)
-            shutil.move(dir, f"{constants.FINISHED_TIMELAPSES_DIR}/{name}")
-            self.is_timelapse_active = False
-        except Exception as e:
-            self.is_timelapse_active = False
-            if os.path.isdir(dir):
-                shutil.rmtree(dir)
-            raise e
 
 async def setup(bot: CameraBot):
     await bot.add_cog(CameraCog(bot))
