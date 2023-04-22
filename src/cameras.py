@@ -47,10 +47,10 @@ class RPiCamera(Camera):
         # Still images from main stream
         # Video stream from lores stream
         res = self.picam2.sensor_resolution
-        self.shape = (int(res[0]), int(res[1]))
+        self.shape = (int(res[0]/2), int(res[1]/2))
         video_config = self.picam2.create_video_configuration(
             main={"size": self.shape},
-            lores={"size": (int(self.shape[0]/10), int(self.shape[1]/10))},
+            lores={"size": (int(self.shape[0]/5), int(self.shape[1]/5))},
             encode="lores",
             # 10 FPS
             controls={"FrameDurationLimits": (100000, 100000)},
