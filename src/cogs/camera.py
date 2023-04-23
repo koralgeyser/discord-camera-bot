@@ -5,9 +5,9 @@ import json
 import os
 import shutil
 import time
+import typing
 import discord
 from discord import app_commands
-import numpy as np
 import constants
 from bot import CameraBot
 import helpers
@@ -52,21 +52,23 @@ class CameraCog(BaseCog):
                 user = interaction.user
                 channel = interaction.channel
 
-                dir = f"{constants.ACTIVE_TIMELAPSES_DIR}/{name}"
+                active_dir = f"{constants.ACTIVE_TIMELAPSES_DIR}/{name}"
+                frames_dir = f"{active_dir}/frames"
                 self.is_timelapse_active = True
 
                 SLEEP_TIME = 0.5
                 try:
-                    if not os.path.isdir(dir):
-                        os.makedirs(dir)
+                    if not os.path.isdir(active_dir):
+                        os.makedirs(active_dir)
+                        os.makedirs(frames_dir)
 
                     metadata = cameras.camera_instance.metadata
                     t0 = time.time()
                     metadata["start_time"] = str(datetime.datetime.fromtimestamp(t0))
-                    data = []
+                    metadata["interval"] = interval
+                    metadata["timestamps"] = []
                     self.total = count
                     self.interval = interval
-
                     for i in range(count):
                         self.progress = i
                         time_up = i * interval
@@ -77,33 +79,39 @@ class CameraCog(BaseCog):
                             if dt >= time_up:
                                 break
                             if not self.is_timelapse_active:
-                                if os.path.isdir(dir):
-                                    shutil.rmtree(dir)
+                                if os.path.isdir(active_dir):
+                                    shutil.rmtree(active_dir)
                                 return
-
+                        snap = await asyncio.to_thread(cameras.camera_instance.snap)
+                        await asyncio.to_thread(snap.save, f"{frames_dir}/{i}.png")
                         metadata["snaps"] = i
-                        data.append(await asyncio.to_thread(cameras.camera_instance.snap))
-
-                    np.savez(f"{dir}/{name}", data)
-                    with open(f"{dir}/{name}.json", "wt", encoding="utf-8") as f:
-                        json.dump(metadata, f, ensure_ascii=False, indent=4)
-                    shutil.move(dir, f"{constants.FINISHED_TIMELAPSES_DIR}/{name}")
+                        metadata["timestamps"] += (i, dt)
+                        with open(f"{active_dir}/{name}.json", "wt", encoding="utf-8") as f:
+                            json.dump(metadata, f, ensure_ascii=False, indent=4)
+                    shutil.move(active_dir, f"{constants.FINISHED_TIMELAPSES_DIR}/{name}")
                     self.is_timelapse_active = False
                 except Exception as e:
                     self.is_timelapse_active = False
-                    if os.path.isdir(dir):
-                        shutil.rmtree(dir)
+                    if os.path.isdir(active_dir):
+                        shutil.rmtree(active_dir)
                     await channel.send(
                         f"{user.mention} An error has occurred with the timelapse."
                     )
                     raise e
 
-                data = await asyncio.to_thread(helpers.get_timelapse_data, name)
-                await asyncio.to_thread(helpers.upload_to_google_folder,
-                    f"{name}.zip",
-                    CONFIG.drive_folder_id,
-                    data
+                path = await asyncio.to_thread(
+                    shutil.make_archive,
+                    name,
+                    "gztar",
+                    constants.FINISHED_TIMELAPSES_DIR,
+                    name
                 )
+                await asyncio.to_thread(helpers.upload_to_google_folder,
+                    f"{name}.gztar",
+                    CONFIG.drive_folder_id,
+                    path
+                )
+                os.remove(path)
                 await channel.send(
                     f"{user.mention} '{name}' timelapse has finished: https://drive.google.com/drive/folders/{CONFIG.drive_folder_id}?usp=sharing.",
                 )
@@ -154,24 +162,30 @@ class CameraCog(BaseCog):
             ephemeral=True,
         )
 
+    @app_commands.describe(
+        private="Privately send? Defaults to true."
+    )
     @camera_group.command(name="snap")
-    async def snap(self, interaction: discord.Interaction):
+    async def snap(
+        self,
+        interaction: discord.Interaction,
+        private: typing.Optional[bool] = True
+    ):
         """Gets a snap from the camera."""
         import cameras
-        from PIL import Image
 
-        await interaction.response.defer()
+        await interaction.response.send_message("Please wait...", ephemeral=private)
 
         snap = await asyncio.to_thread(cameras.camera_instance.snap)
         buffer = io.BytesIO()
-        img = Image.fromarray(snap)
 
         # Hardcoding ext for now
         with io.BytesIO() as buffer:
-            img.save(buffer, "PNG", optimize=True)
+            await asyncio.to_thread(snap.save, buffer, "PNG", optimize=True)
             buffer.seek(0)
-            await interaction.followup.send(
-                file=discord.File(fp=buffer, filename="snap.png")
+            await interaction.edit_original_response(
+                content="",
+                attachments=[discord.File(fp=buffer, filename="snap.png")]
             )
 
     @camera_group.command(name="feed")

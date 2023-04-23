@@ -60,7 +60,6 @@ def get_timelapse_data(name):
     # Only finished timelapses atm
     buffer = io.BytesIO()
     dir = pathlib.Path(f"{constants.FINISHED_TIMELAPSES_DIR}/{name}/")
-    # TODO: QOL be fancy and send in chunks if using a pyobj
     with zipfile.ZipFile(buffer, "a", zipfile.ZIP_DEFLATED, False) as archive:
         for path in dir.iterdir():
             with open(path, mode="rb") as fs:
@@ -70,10 +69,10 @@ def get_timelapse_data(name):
 
 
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaFileUpload
 from google.oauth2 import service_account
 
-def upload_to_google_folder(filename: str, folder_id: str, buffer: io.BytesIO):
+def upload_to_google_folder(filename: str, folder_id: str, path: str):
     SCOPES = ['https://www.googleapis.com/auth/drive']
     SERVICE_ACCOUNT_FILE = 'google_service.json'
 
@@ -82,11 +81,17 @@ def upload_to_google_folder(filename: str, folder_id: str, buffer: io.BytesIO):
 
     # create drive api client
     service = build('drive', 'v3', credentials=creds)
-    media = MediaIoBaseUpload(buffer, mimetype="application/zip", resumable=True)
+    # media = MediaIoBaseUpload(buffer, mimetype="application/zip", resumable=True)
+    # request = service.files().create(
+    #     media_body=media,
+    #     body={'name': filename, 'parents': [folder_id]}
+    # )
+    media = MediaFileUpload(path, resumable=True)
     request = service.files().create(
         media_body=media,
-        body={'name': filename, 'parents': [folder_id]}
+        body={'name': filename, 'parents': [folder_id]},
     )
+
     response = None
     while response is None:
         _, response = request.next_chunk()

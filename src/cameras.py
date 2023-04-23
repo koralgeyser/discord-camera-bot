@@ -6,6 +6,7 @@ from typing import Any, Final
 import numpy as np
 from abc import ABC, abstractmethod
 import simplejpeg
+from PIL import Image
 
 if sys.platform.startswith("linux"):
     import picamera2
@@ -23,7 +24,7 @@ class Camera(ABC):
         pass
 
     @abstractmethod
-    def snap(self) -> np.ndarray:
+    def snap(self) -> Image.Image:
         pass
 
     @abstractmethod
@@ -75,13 +76,9 @@ class RPiCamera(Camera):
 
     def snap(self):
         request: picamera2.picamera2.CompletedRequest = self.picam2.capture_request()
-        snap: np.ndarray = request.make_array("main")
+        # snap: np.ndarray = request.make_array("main")
+        snap: Image.Image = request.make_image("main")
         request.release()
-        self.shape = snap.shape
-        # Add logging here
-        # try:
-        # except:
-        # 	snap = np.zeros(self.picam2.sensor_resolution,dtype=self.dtype)
         return snap
 
     def set_params(self, params):
@@ -125,16 +122,15 @@ class DummyCamera(Camera):
             np.frombuffer(p, dtype="uint8").reshape(self.shape).astype("double") / 255.0
         )
         self.exposure = 50.0
-        self.last: np.ndarray = None
 
     def __str__(self) -> str:
         return "Dummy Camera"
 
-    def snap(self) -> np.ndarray:
-        self.last = np.random.poisson(
+    def snap(self):
+        snap = np.random.poisson(
             (self.parappa * 10.0 + 1.0) * self.exposure
         ).astype("uint16")
-        return self.last
+        return Image.fromarray(np.uint8(snap))
 
     def start_stream(self, output: io.BufferedIOBase):
         self.is_streaming = True

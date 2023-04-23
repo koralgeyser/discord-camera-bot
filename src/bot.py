@@ -49,6 +49,8 @@ class CameraBot(commands.Bot):
         self.logger.addHandler(handler)
 
     async def on_ready(self):
+        initialize_dirs()
+
         self.logger.info(f"Logged in as {self.user.name} (ID: {self.user.id})")
         self.logger.info(f"Camera Module: {cameras.camera_instance}")
         self.logger.info("------")
@@ -151,8 +153,6 @@ def initialize_dirs():
 #     # helpers.update(branch)
 
 def run():
-    initialize_dirs()
-
     bot = CameraBot()
     bot.run(config.CONFIG.discord_token, reconnect=True)
 
