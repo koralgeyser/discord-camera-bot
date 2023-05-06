@@ -59,11 +59,16 @@ class RPiCamera(Camera):
         self.picam2.configure(video_config)
         self.picam2.start()
 
+        # Give time for Aec and Awb to settle, before disabling them
+        time.sleep(1)
+        self.picam2.set_controls({"AeEnable": False, "AwbEnable": False, "FrameRate": 1.0})
+        # And wait for those settings to take effect
+        time.sleep(1)
+
+
         self.dtype = "uint8"
         self.gain = 1.0
         self.exposure = 10000  # us
-        # self.set_params({})
-        self.last = None
 
     def __str__(self) -> str:
         return "Raspberry Pi Camera"
