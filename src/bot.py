@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 import traceback
 import discord
 import cameras
@@ -62,7 +61,7 @@ class CameraBot(commands.Bot):
     async def load_cogs(self):
         import cogs
 
-        for cog in helpers.get_cogs():
+        for cog in helpers.list_cogs():
             try:
                 await self.load_extension(f"{cogs.__name__}.{cog}")
                 self.logger.info(f"Loaded '{cog}' cog")
@@ -108,23 +107,8 @@ class CameraBot(commands.Bot):
 
 def initialize_dirs():
     import constants
-
-    if not os.path.exists(constants.ACTIVE_TIMELAPSES_DIR):
-        os.makedirs(constants.ACTIVE_TIMELAPSES_DIR)
-    if not os.path.exists(constants.FINISHED_TIMELAPSES_DIR):
-        os.makedirs(constants.FINISHED_TIMELAPSES_DIR)
-    if not os.path.exists(constants.INCOMPLETE_TIMELAPSES_DIR):
-        os.makedirs(constants.INCOMPLETE_TIMELAPSES_DIR)
-
-    # Move any active timelapses that are now in limbo due to w/e reason to incomplete
-    for dir in os.listdir(constants.ACTIVE_TIMELAPSES_DIR):
-        incomplete_path = f"{constants.INCOMPLETE_TIMELAPSES_DIR}/{dir}"
-        if os.path.exists(incomplete_path):
-            shutil.rmtree(incomplete_path)
-        shutil.move(
-            f"{constants.ACTIVE_TIMELAPSES_DIR}/{dir}",
-            constants.INCOMPLETE_TIMELAPSES_DIR,
-        )
+    if not os.path.exists(constants.TIMELAPSES_DIR):
+        os.makedirs(constants.TIMELAPSES_DIR)
 
 # @commands.is_owner()
 # @bot.command()

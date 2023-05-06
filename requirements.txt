@@ -6,3 +6,4 @@ discord.py
 simplejpeg
 Pillow
 google-api-python-client
+ffmpeg-python

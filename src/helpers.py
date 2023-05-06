@@ -14,12 +14,19 @@ from pathlib import Path
 def get_autocomplete(query, choices: List):
     return list(filter(lambda x: query.lower() in x.lower(), choices))[:25]
 
-def get_cogs():
+def list_cogs():
     return [
         Path(file).stem
         for file in os.listdir(constants.COGS_DIR)
         if file.endswith(".py") and not file.startswith("__init__")
     ]
+
+def list_timelapses():
+    return [
+        timelapse
+        for timelapse in os.listdir(constants.TIMELAPSES_DIR)
+    ]
+
 
 def restart():
     os.execv(sys.executable, ["python"] + sys.argv)
@@ -57,9 +64,8 @@ async def async_update(branch: str):
             shutil.rmtree(TMP_DIR)
 
 def get_timelapse_data(name):
-    # Only finished timelapses atm
     buffer = io.BytesIO()
-    dir = pathlib.Path(f"{constants.FINISHED_TIMELAPSES_DIR}/{name}/")
+    dir = pathlib.Path(f"{constants.TIMELAPSES_DIR}/{name}/")
     with zipfile.ZipFile(buffer, "a", zipfile.ZIP_DEFLATED, False) as archive:
         for path in dir.iterdir():
             with open(path, mode="rb") as fs:

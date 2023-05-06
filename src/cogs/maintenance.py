@@ -67,18 +67,18 @@ class MaintenanceCog(BaseCog):
         await interaction.response.send_message(
             "Are you sure you want me to update?", view=view, ephemeral=True
         )
-        await view.wait(interaction)
-        if view.value:
-            await interaction.followup.send("Updating...", ephemeral=True)
-            await helpers.async_update(branch)
+        if not await view.wait(interaction):
+            if view.value:
+                await interaction.followup.send("Updating...", ephemeral=True)
+                await helpers.async_update(branch)
 
-            if auto_restart:
-                await interaction.followup.send(
-                    "Update complete. Restarting now...", ephemeral=True
-                )
-                helpers.restart()
-            else:
-                await interaction.followup.send("Update complete.", ephemeral=True)
+                if auto_restart:
+                    await interaction.followup.send(
+                        "Update complete. Restarting now...", ephemeral=True
+                    )
+                    helpers.restart()
+                else:
+                    await interaction.followup.send("Update complete.", ephemeral=True)
 
 
     @checks.is_owner()
@@ -89,10 +89,10 @@ class MaintenanceCog(BaseCog):
         await interaction.response.send_message(
             "Are you sure you want me to restart?", view=view, ephemeral=True
         )
-        await view.wait(interaction)
-        if view.value:
-            await interaction.followup.send("Restarting...", ephemeral=True)
-            helpers.restart()
+        if not await view.wait(interaction):
+            if view.value:
+                await interaction.followup.send("Restarting...", ephemeral=True)
+                helpers.restart()
 
     @checks.is_owner()
     @maintenance_group.command(name="shutdown")
@@ -102,10 +102,10 @@ class MaintenanceCog(BaseCog):
         await interaction.response.send_message(
             "Are you sure you want me to shutdown?", view=view, ephemeral=True
         )
-        await view.wait(interaction)
-        if view.value:
-            await interaction.followup.send("Shutting down...", ephemeral=True)
-            await self.bot.close()
+        if not await view.wait(interaction):
+            if view.value:
+                await interaction.followup.send("Shutting down...", ephemeral=True)
+                await self.bot.close()
 
     @checks.is_owner()
     @app_commands.describe(id="Server ID to sync to. Defaults to current server.")
@@ -121,13 +121,13 @@ class MaintenanceCog(BaseCog):
             view=view,
             ephemeral=True,
         )
-        await view.wait(interaction)
-        if view.value:
-            id = id if id else interaction.guild_id
-            guild = discord.Object(id=id)
-            self.bot.tree.copy_global_to(guild=guild)
-            await self.bot.tree.sync(guild=guild)
-            await interaction.followup.send("Synced!", ephemeral=True)
+        if not await view.wait(interaction):
+            if view.value:
+                id = id if id else interaction.guild_id
+                guild = discord.Object(id=id)
+                self.bot.tree.copy_global_to(guild=guild)
+                await self.bot.tree.sync(guild=guild)
+                await interaction.followup.send("Synced!", ephemeral=True)
 
     async def logs_names_autocompletion(
         self, interaction: discord.Interaction, current: str
@@ -154,7 +154,7 @@ class MaintenanceCog(BaseCog):
     ) -> typing.List[app_commands.Choice[str]]:
         return [
             app_commands.Choice(name=choice, value=choice)
-            for choice in helpers.get_autocomplete(current, helpers.get_cogs())
+            for choice in helpers.get_autocomplete(current, helpers.list_cogs())
         ]
 
     @checks.is_owner()
@@ -216,7 +216,7 @@ class MaintenanceCog(BaseCog):
     ):
         """Reloads a cog."""
         if all:
-            for cog in helpers.get_cogs():
+            for cog in helpers.list_cogs():
                 await self.bot.reload_extension(f"{cogs.__name__}.{cog}")
             return await interaction.response.send_message(
                 "Successfully reloaded all cogs.", ephemeral=True

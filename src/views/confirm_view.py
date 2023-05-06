@@ -29,8 +29,14 @@ class ConfirmView(discord.ui.View):
         for button in self.children:
             button.disabled = True
         result = await super().wait()
-        await interaction.edit_original_response(
-            content="Confirmed. Please wait..." if self.value else "Canceled.",
-            view=self,
-        )
-        return result
+        if result:
+            await interaction.edit_original_response(
+                view=self
+            )
+            return result
+        else:
+            await interaction.edit_original_response(
+                content="Confirmed. Please wait..." if self.value else "Canceled.",
+                view=self,
+            )
+            return result
